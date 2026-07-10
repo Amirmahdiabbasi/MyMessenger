@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <title>پیام‌رسان دایمی</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: sans-serif; padding: 20px; background-color: #f0f2f5; margin: 0; padding-bottom: 80px; }
+        h2 { text-align: center; color: #4a4a4a; }
+        #messages { list-style-type: none; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+        
+        .msg { max-width: 75%; padding: 10px 14px; border-radius: 15px; font-size: 15px; line-height: 1.4; word-break: break-word; position: relative; }
+        .msg .user { font-size: 11px; font-weight: bold; margin-bottom: 4px; display: block; }
+        .msg .time { font-size: 9px; display: block; text-align: left; margin-top: 4px; opacity: 0.6; }
+        
+        /* پیام‌های من */
+        .my-msg { align-self: flex-start; background: #0084ff; color: white; border-bottom-right-radius: 2px; }
+        .my-msg .user { color: #d0e7ff; }
+        
+        /* پیام‌های دیگران */
+        .other-msg { align-self: flex-end; background: white; color: #333; border-bottom-left-radius: 2px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        .other-msg .user { color: #0084ff; }
+        
+        .system-msg { align-self: center; background: #dee2e6; color: #6c757d; font-size: 12px; padding: 4px 12px; border-radius: 10px; }
+
+        #form { display: flex; position: fixed; bottom: 20px; left: 20px; right: 20px; background: white; padding: 5px; border-radius: 30px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
+        #input { flex-grow: 1; padding: 12px 20px; border: none; outline: none; font-size: 15px; background: transparent; }
+        button { padding: 10px 25px; background: #0084ff; color: white; border: none; border-radius: 25px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h2>چت‌روم با ذخیره‌سازی دایمی</h2>
+    <ul id="messages"></ul>
+    <form id="form" action="">
+        <input id="input" autocomplete="off" placeholder="پیام خود را بنویسید..." />
+        <button>ارسال</button>
+    </form>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        var username = prompt("لطفاً نام کاربری خود را وارد کنید:") || "ناشناس";
+        var socket = io();
+        
+        socket.emit('join', username);
+
+        var form = document.getElementById('form');
+        var input = document.getElementById('input');
+        var messages = document.getElementById('messages');
+
+        // تابع کمکی برای چاپ پیام روی صفحه
+        function displayMessage(data) {
+            var item = document.createElement('li');
+            item.classList.add('msg');
+            
+            // تشخیص پیام خودمان بر اساس نام کاربری کپی شده
+            if (data.username === username) {
+                item.classList.add('my-msg');
+            } else {
+                item.classList.add('other-msg');
+            }
+            
+            item.innerHTML = '<span class="user">' + data.username + '</span>' + data.text + '<span class="time">' + data.time + '</span>';
+            messages.appendChild(item);
+            window.scrollTo(0, document.body.scrollHeight);
+        }
+
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            if (input.value.trim()) {
+                socket.emit('chat message', input.value);
+                input.value = '';
+            }
+        });
+
+        // دریافت پیام جدید
+        socket.on('chat message', function(data) {
+            displayMessage(data);
+        });
+
+        // دریافت کل تاریخچه پیام‌های قدیمی به محض ورود
+        socket.on('chat history', function(history) {
+            history.forEach(function(data) {
+                displayMessage(data);
+            });
+        });
+
+        socket.on('system message', function(msg) {
+            var item = document.createElement('li');
+            item.classList.add('system-msg');
+            item.textContent = msg;
+            messages.appendChild(item);
+            window.scrollTo(0, document.body.scrollHeight);
+        });
+    </script>
+</body>
+</html>
