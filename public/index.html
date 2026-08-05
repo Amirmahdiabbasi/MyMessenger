@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تلگرام وب اختصاصی</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+        body { background-color: #0e1621; color: #fff; height: 100vh; display: flex; flex-direction: column; }
+        header { background-color: #17212b; padding: 10px 16px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #10171e; }
+        .avatar { width: 40px; height: 40px; background: #2a6bad; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+        .header-info { display: flex; flex-direction: column; }
+        .header-title { font-weight: bold; font-size: 1rem; }
+        .header-status { font-size: 0.8rem; color: #64b5f6; }
+        #chat-box { flex: 1; padding: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; background-color: #0e1621; }
+        .message-wrapper { display: flex; flex-direction: column; max-width: 80%; }
+        .message-wrapper.sent { align-self: flex-end; }
+        .message-wrapper.received { align-self: flex-start; }
+        .message { padding: 8px 12px; border-radius: 12px; font-size: 0.95rem; line-height: 1.4; word-break: break-word; position: relative; }
+        .received .message { background-color: #182533; border-bottom-right-radius: 2px; }
+        .sent .message { background-color: #2b5278; border-bottom-left-radius: 2px; }
+        .sender-name { font-size: 0.8rem; font-weight: bold; margin-bottom: 3px; color: #64b5f6; }
+        .msg-meta { font-size: 0.65rem; color: rgba(255,255,255,0.5); text-align: left; margin-top: 4px; margin-left: 5px; }
+        footer { background-color: #17212b; padding: 10px; display: flex; gap: 8px; align-items: center; }
+        input { flex: 1; padding: 12px 16px; border-radius: 22px; border: none; outline: none; background-color: #242f3d; color: #fff; font-size: 0.95rem; }
+        input::placeholder { color: #7f91a4; }
+        button { background-color: #2a6bad; color: #fff; border: none; width: 44px; height: 44px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        button svg { fill: #fff; width: 20px; height: 20px; transform: rotate(180deg); }
+        .sys-msg { align-self: center; background: rgba(0,0,0,0.3); color: #7f91a4; font-size: 0.75rem; padding: 4px 10px; border-radius: 10px; margin: 4px 0; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="avatar">✈️</div>
+        <div class="header-info">
+            <div class="header-title">چت‌روم اختصاصی</div>
+            <div class="header-status">آنلاین</div>
+        </div>
+    </header>
+
+    <div id="chat-box"></div>
+
+    <footer>
+        <input type="text" id="msgInput" placeholder="پیام خود را بنویسید..." onkeypress="handleKey(event)">
+        <button onclick="sendMsg()">
+            <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+        </button>
+    </footer>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let myName = prompt("نام کاربری خود را وارد کنید:") || "کاربر ناشناس";
+        
+        socket.emit('user joined', myName);
+
+        socket.on('user joined', (username) => {
+            const chatBox = document.getElementById('chat-box');
+            const sysDiv = document.createElement('div');
+            sysDiv.className = 'sys-msg';
+            sysDiv.innerText = `${username} وارد چت شد`;
+            chatBox.appendChild(sysDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        });
+
+        socket.on('chat message', (data) => {
+            const chatBox = document.getElementById('chat-box');
+            const isMe = data.user === myName;
+            
+            const wrapper = document.createElement('div');
+            wrapper.className = `message-wrapper ${isMe ? 'sent' : 'received'}`;
+            
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'message';
+            
+            let html = '';
+            if (!isMe) {
+                html += `<div class="sender-name">${data.user}</div>`;
+            }
+            html += `<div>${data.text}</div>`;
+            html += `<div class="msg-meta">${data.time}</div>`;
+            
+            msgDiv.innerHTML = html;
+            wrapper.appendChild(msgDiv);
+            chatBox.appendChild(wrapper);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        });
+
+        function sendMsg() {
+            const input = document.getElementById('msgInput');
+            const text = input.value.trim();
+            if (text !== '') {
+                const now = new Date();
+                const timeStr = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+                socket.emit('chat message', { user: myName, text: text, time: timeStr });
+                input.value = '';
+            }
+        }
+
+        function handleKey(e) {
+            if (e.key === 'Enter') sendMsg();
+        }
+    </script>
+</body>
+</html>
