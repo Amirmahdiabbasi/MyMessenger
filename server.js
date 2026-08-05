@@ -1,94 +1,63 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
-const path = require('path');
 const mongoose = require('mongoose');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: '*' }
-});
+const io = new Server(server);
 
-// ۱. اتصال به دیتابیس MongoDB Atlas
-const mongoURI = process.env.MONGODB_URI;
+app.use(express.static('public')); // یا آدرس پوشه فایل‌های فرانت‌اند شما
 
-if (!mongoURI) {
-  console.error('❌ خطا: MONGODB_URI در تنظیمات Render تعریف نشده است!');
-} else {
-  mongoose.connect(mongoURI)
-    .then(() => console.log('✅ اتصال به دیتابیس MongoDB با موفقیت برقرار شد'))
-    .catch((err) => console.error('❌ خطا در اتصال به دیتابیس MongoDB:', err));
+// اتصال به دیتابیس MongoDB
+const MONGODB_URI = process.env.MONGODB_URI;
+if (MONGODB_URI) {
+  mongoose.connect(MONGODB_URI)
+    .then(() => console.log('✅ Connected to MongoDB'))
+    .catch(err => console.error('❌ MongoDB Connection Error:', err));
 }
 
-// ۲. ساختار و مدل ذخیره‌سازی پیام‌ها
+// اسکیما و مدل پیام‌ها
 const messageSchema = new mongoose.Schema({
-  username: { type: String, default: 'کاربر ناشناس' },
-  text: { type: String, required: true },
+  text: String,
   createdAt: { type: Date, default: Date.now }
 });
-
 const Message = mongoose.model('Message', messageSchema);
 
-// ۳. مسیردهی فایل‌های فرانت‌اند (پوشه public)
-app.use(express.static(path.join(__dirname, 'public')));
-
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// ۴. مدیریت ارتباطات Socket.io
+// مدیریت ارتباطات Socket.io
 io.on('connection', async (socket) => {
-  console.log('⚡ کاربر جدید متصل شد:', socket.id);
+  console.log('⚡ کاربر جدید متصل شد');
 
-  // ارسال تاریخچه پیام‌های ذخیره‌شده به کاربر به محض ورود
+  // ۱. بارگذاری پیام‌های قدیمی برای کاربر تازه وارد
   try {
-    const history = await Message.find().sort({ createdAt: 1 }).limit(100);
+    const history = await Message.find().sort({ createdAt: 1 }).limit(50);
     socket.emit('load history', history);
   } catch (err) {
-    console.error('خطا در دریافت تاریخچه پیام‌ها:', err);
+    console.error('خطا در دریافت تاریخچه:', err.message);
   }
 
-  // اطلاع‌رسانی ورود کاربر جدید
-  socket.on('user joined', (username) => {
-    socket.broadcast.emit('user joined', username);
-  });
+  // ۲. دریافت و ارسال پیام جدید
+  socket.on('chat message', (msg) => {
+    if (!msg) return;
 
-  // دریافت، ذخیره در MongoDB و پخش پیام جدید برای همه
-  socket.on('chat message', async (data) => {
-    try {
-      let messageText = '';
-      let messageSender = 'کاربر ناشناس';
+    // ارسال فوری پیام به همه کاربران (بدون معطل شدن برای دیتابیس)
+    io.emit('chat message', msg);
 
-      if (typeof data === 'object' && data !== null) {
-        messageText = data.text || '';
-        messageSender = data.username || data.sender || 'کاربر ناشناس';
-      } else {
-        messageText = String(data);
-      }
-
-      if (!messageText.trim()) return;
-
-      const newMessage = new Message({
-        username: messageSender,
-        text: messageText
+    // ذخیره در دیتابیس در پس‌زمینه
+    if (mongoose.connection.readyState === 1) {
+      Message.create({ text: msg }).catch(err => {
+        console.error('خطا در ذخیره پیام در دیتابیس:', err.message);
       });
-
-      const savedMessage = await newMessage.save();
-      io.emit('chat message', savedMessage);
-    } catch (err) {
-      console.error('خطا در ذخیره‌سازی پیام:', err);
     }
   });
 
   socket.on('disconnect', () => {
-    console.log('❌ کاربر قطع شد:', socket.id);
+    console.log('کاربر قطع شد');
   });
 });
 
-// ۵. تنظیم پورت و آدرس IP برای حل مشکل Render
-const PORT = process.env.PORT || 10000;
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 سرور با موفقیت روی پورت ${PORT} اجرا شد`);
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
 });
-
+                               
