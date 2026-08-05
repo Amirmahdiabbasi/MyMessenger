@@ -8,31 +8,32 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// ارسال مستقیم فایل index.html
+// ارسال فایل index.html
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// اتصال به دیتابیس MongoDB
+// اتصال به MongoDB
 const MONGODB_URI = process.env.MONGODB_URI;
 if (MONGODB_URI) {
   mongoose.connect(MONGODB_URI)
-    .then(() => console.log('✅ MongoDB Connected'))
-    .catch(err => console.error('❌ DB Error:', err.message));
+    .then(() => console.log('✅ اتصال به MongoDB برقرار شد'))
+    .catch(err => console.error('❌ خطای اتصال به دیتابیس:', err.message));
 }
 
-// ساختار پیام در دیتابیس
+// ساختار پیام در دیتابیس (با نام کاربری و متن)
 const messageSchema = new mongoose.Schema({
-  text: String,
+  username: { type: String, required: true },
+  text: { type: String, required: true },
   createdAt: { type: Date, default: Date.now }
 });
 const Message = mongoose.model('Message', messageSchema);
 
-// مدیریت سوکت‌ها
+// مدیریت ارتباط سوکت
 io.on('connection', async (socket) => {
-  console.log('⚡ کاربر متصل شد');
+  console.log('⚡ کاربر جدید متصل شد');
 
-  // دریافت تاریخچه پیام‌ها
+  // ۱. بارگذاری تاریخچه پیام‌ها از دیتابیس (ماندگاری)
   try {
     if (mongoose.connection.readyState === 1) {
       const history = await Message.find().sort({ createdAt: 1 }).limit(50);
@@ -42,23 +43,27 @@ io.on('connection', async (socket) => {
     console.error('خطا در دریافت تاریخچه:', err.message);
   }
 
-  // دریافت و ارسال پیام جدید
-  socket.on('chat message', (msg) => {
-    if (!msg || !msg.trim()) return;
+  // ۲. دریافت و پخش پیام جدید
+  socket.on('chat message', (data) => {
+    if (!data || !data.text || !data.text.trim()) return;
 
-    // ارسال آنی به همه کاربران
-    io.emit('chat message', msg);
+    const messageData = {
+      username: data.username || 'کاربر ناشناس',
+      text: data.text.trim(),
+      createdAt: new Date()
+    };
 
-    // ذخیره در دیتابیس در پس‌زمینه
+    // ارسال به همه کاربران
+    io.emit('chat message', messageData);
+
+    // ذخیره در دیتابیس
     if (mongoose.connection.readyState === 1) {
-      Message.create({ text: msg }).catch(err => {
-        console.error('خطا در ذخیره:', err.message);
-      });
+      Message.create(messageData).catch(err => console.error('خطا در ذخیره دیتابیس:', err.message));
     }
   });
 });
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`🚀 سرور روی پورت ${PORT} اجرا شد`);
 });
