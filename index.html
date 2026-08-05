@@ -1,64 +1,55 @@
-const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
-const mongoose = require('mongoose');
-const path = require('path');
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>پیام‌رسان</title>
+  <style>
+    body { font-family: sans-serif; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; background: #f4f4f9; }
+    #messages { list-style-type: none; margin: 0; padding: 20px; flex-grow: 1; overflow-y: auto; }
+    #messages li { background: #fff; padding: 10px 15px; border-radius: 8px; margin-bottom: 10px; width: fit-content; max-width: 80%; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    #form { display: flex; padding: 10px; background: #fff; border-top: 1px solid #ccc; }
+    #input { flex-grow: 1; padding: 10px; border: 1px solid #ccc; border-radius: 5px; outline: none; }
+    #form button { padding: 10px 20px; margin-right: 10px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <ul id="messages"></ul>
+  <form id="form">
+    <input id="input" autocomplete="off" placeholder="پیام خود را بنویسید..." />
+    <button type="submit">ارسال</button>
+  </form>
 
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server);
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const form = document.getElementById('form');
+    const input = document.getElementById('input');
+    const messages = document.getElementById('messages');
 
-// ارسال مستقیم فایل index.html
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
-
-// اتصال به دیتابیس MongoDB
-const MONGODB_URI = process.env.MONGODB_URI;
-if (MONGODB_URI) {
-  mongoose.connect(MONGODB_URI)
-    .then(() => console.log('✅ MongoDB Connected'))
-    .catch(err => console.error('❌ DB Error:', err.message));
-}
-
-// ساختار پیام در دیتابیس
-const messageSchema = new mongoose.Schema({
-  text: String,
-  createdAt: { type: Date, default: Date.now }
-});
-const Message = mongoose.model('Message', messageSchema);
-
-// مدیریت سوکت‌ها
-io.on('connection', async (socket) => {
-  console.log('⚡ کاربر متصل شد');
-
-  // دریافت تاریخچه پیام‌ها
-  try {
-    if (mongoose.connection.readyState === 1) {
-      const history = await Message.find().sort({ createdAt: 1 }).limit(50);
-      socket.emit('load history', history);
+    function addMessage(text) {
+      const item = document.createElement('li');
+      item.textContent = text;
+      messages.appendChild(item);
+      window.scrollTo(0, document.body.scrollHeight);
     }
-  } catch (err) {
-    console.error('خطا در دریافت تاریخچه:', err.message);
-  }
 
-  // دریافت و ارسال پیام جدید
-  socket.on('chat message', (msg) => {
-    if (!msg || !msg.trim()) return;
+    socket.on('load history', (history) => {
+      messages.innerHTML = '';
+      history.forEach(item => addMessage(item.text));
+    });
 
-    // ارسال آنی به همه کاربران
-    io.emit('chat message', msg);
+    socket.on('chat message', (msg) => {
+      addMessage(msg);
+    });
 
-    // ذخیره در دیتابیس در پس‌زمینه
-    if (mongoose.connection.readyState === 1) {
-      Message.create({ text: msg }).catch(err => {
-        console.error('خطا در ذخیره:', err.message);
-      });
-    }
-  });
-});
-
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-});
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (input.value.trim()) {
+        socket.emit('chat message', input.value);
+        input.value = '';
+      }
+    });
+  </script>
+</body>
+</html>
