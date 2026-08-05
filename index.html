@@ -5,48 +5,151 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>پیام‌رسان</title>
   <style>
-    body { font-family: sans-serif; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; background: #f4f4f9; }
-    #messages { list-style-type: none; margin: 0; padding: 20px; flex-grow: 1; overflow-y: auto; }
-    #messages li { background: #fff; padding: 10px 15px; border-radius: 8px; margin-bottom: 10px; width: fit-content; max-width: 80%; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-    #form { display: flex; padding: 10px; background: #fff; border-top: 1px solid #ccc; }
-    #input { flex-grow: 1; padding: 10px; border: 1px solid #ccc; border-radius: 5px; outline: none; }
-    #form button { padding: 10px 20px; margin-right: 10px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: Tahoma, Vazir, sans-serif; }
+    body { background-color: #eef2f5; display: flex; justify-content: center; align-items: center; height: 100vh; }
+    
+    /* پنجره دریافت نام کاربری */
+    #username-modal {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.6); display: flex; justify-content: center; align-items: center; z-index: 10;
+    }
+    .modal-box {
+      background: #fff; padding: 25px; border-radius: 12px; text-align: center; width: 90%; max-width: 350px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+    .modal-box h3 { margin-bottom: 15px; color: #333; }
+    .modal-box input {
+      width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 6px; outline: none; text-align: center;
+    }
+    .modal-box button {
+      width: 100%; padding: 10px; background: #0088cc; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;
+    }
+
+    /* کانتینر اصلی چت */
+    .chat-container {
+      width: 100%; max-width: 500px; height: 100vh; display: flex; flex-direction: column; background: #fff; box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    .chat-header {
+      background: #0088cc; color: white; padding: 15px; text-align: center; font-weight: bold; font-size: 1.1rem;
+    }
+    #messages {
+      flex: 1; padding: 15px; overflow-y: auto; list-style: none; display: flex; flex-direction: column; gap: 10px; background: #eef2f5;
+    }
+    .message-item {
+      max-width: 80%; background: #ffffff; padding: 10px 14px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); word-wrap: break-word; align-self: flex-start;
+    }
+    .message-item.my-message {
+      align-self: flex-end; background: #e1ffc7;
+    }
+    .username {
+      font-size: 0.8rem; font-weight: bold; color: #0088cc; margin-bottom: 4px; display: block;
+    }
+    .message-item.my-message .username { color: #2e7d32; }
+    .text { font-size: 0.95rem; color: #222; }
+    .time { font-size: 0.7rem; color: #888; margin-top: 4px; text-align: left; display: block; }
+
+    /* کادر ارسال پیام */
+    #form { display: flex; padding: 10px; background: #fff; border-top: 1px solid #ddd; }
+    #input { flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 20px; outline: none; font-size: 0.95rem; }
+    #form button {
+      margin-right: 8px; padding: 10px 18px; background: #0088cc; color: white; border: none; border-radius: 20px; font-weight: bold; cursor: pointer;
+    }
   </style>
 </head>
 <body>
-  <ul id="messages"></ul>
-  <form id="form">
-    <input id="input" autocomplete="off" placeholder="پیام خود را بنویسید..." />
-    <button type="submit">ارسال</button>
-  </form>
+
+  <!-- ورودی نام کاربری -->
+  <div id="username-modal">
+    <div class="modal-box">
+      <h3>ورود به پیام‌رسان</h3>
+      <input type="text" id="username-input" placeholder="نام کاربری خود را وارد کنید..." maxlength="20" />
+      <button id="join-btn">ورود به چت</button>
+    </div>
+  </div>
+
+  <!-- محیط پیام‌رسان -->
+  <div class="chat-container">
+    <div class="chat-header">پیام‌رسان آنلاین</div>
+    <ul id="messages"></ul>
+    <form id="form">
+      <input id="input" autocomplete="off" placeholder="پیام خود را بنویسید..." />
+      <button type="submit">ارسال</button>
+    </form>
+  </div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
     const socket = io();
+    let username = '';
+
+    const modal = document.getElementById('username-modal');
+    const usernameInput = document.getElementById('username-input');
+    const joinBtn = document.getElementById('join-btn');
     const form = document.getElementById('form');
     const input = document.getElementById('input');
     const messages = document.getElementById('messages');
 
-    function addMessage(text) {
-      const item = document.createElement('li');
-      item.textContent = text;
-      messages.appendChild(item);
-      window.scrollTo(0, document.body.scrollHeight);
+    // تنظیم نام کاربری
+    function setUsername() {
+      const name = usernameInput.value.trim();
+      if (name) {
+        username = name;
+        modal.style.display = 'none';
+        input.focus();
+      }
     }
 
+    joinBtn.addEventListener('click', setUsername);
+    usernameInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') setUsername();
+    });
+
+    // نمایش پیام در صفحه
+    function addMessage(data) {
+      const item = document.createElement('li');
+      item.classList.add('message-item');
+      
+      if (data.username === username) {
+        item.classList.add('my-message');
+      }
+
+      const timeStr = data.createdAt 
+        ? new Date(data.createdAt).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })
+        : new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' });
+
+      item.innerHTML = `
+        <span class="username">${data.username}</span>
+        <div class="text">${data.text}</div>
+        <span class="time">${timeStr}</span>
+      `;
+
+      messages.appendChild(item);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    // بارگذاری پیام‌های قدیمی (دیتابیس)
     socket.on('load history', (history) => {
       messages.innerHTML = '';
-      history.forEach(item => addMessage(item.text));
+      history.forEach(item => addMessage(item));
     });
 
-    socket.on('chat message', (msg) => {
-      addMessage(msg);
+    // دریافت پیام جدید
+    socket.on('chat message', (data) => {
+      addMessage(data);
     });
 
+    // ارسال پیام
     form.addEventListener('submit', (e) => {
       e.preventDefault();
+      if (!username) {
+        modal.style.display = 'flex';
+        return;
+      }
       if (input.value.trim()) {
-        socket.emit('chat message', input.value);
+        socket.emit('chat message', {
+          username: username,
+          text: input.value.trim()
+        });
         input.value = '';
       }
     });
