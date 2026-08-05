@@ -6,42 +6,43 @@ const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
+
+// افزایش حجم مجاز برای دریافت عکس و ویس (تا ۱۰ مگابایت)
 const io = new Server(server, {
-  cors: { origin: '*' }
+  cors: { origin: '*' },
+  maxHttpBufferSize: 1e7
 });
 
-// ۱. سرو فایل اصلی index.html
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// ۲. اتصال به MongoDB Atlas
+// اتصال به دیتابیس MongoDB
 const MONGODB_URI = process.env.MONGODB_URI;
-
 if (MONGODB_URI) {
-  mongoose.connect(MONGODB_URI, {
-    serverSelectionTimeoutMS: 5000
-  })
+  mongoose.connect(MONGODB_URI, { serverSelectionTimeoutMS: 5000 })
     .then(() => console.log('✅ اتصال به MongoDB با موفقیت برقرار شد'))
     .catch(err => console.error('❌ خطای اتصال به دیتابیس:', err.message));
-} else {
-  console.error('❌ متغیر MONGODB_URI در Render تنظیم نشده است!');
 }
 
-// ۳. ساختار پیام در دیتابیس
+// اسکیما و مدل جامع پیام‌ها (شامل عکس، ویس، متن و ریپلی)
 const messageSchema = new mongoose.Schema({
   username: { type: String, required: true },
-  text: { type: String, required: true },
+  type: { type: String, enum: ['text', 'image', 'voice'], default: 'text' },
+  text: { type: String, default: '' },
+  mediaData: { type: String, default: '' }, // ذخیره بیس۶۴ عکس یا صدا
+  replyTo: {
+    username: String,
+    text: String,
+    type: { type: String, default: 'text' }
+  },
   createdAt: { type: Date, default: Date.now }
 });
 
 const Message = mongoose.model('Message', messageSchema);
 
-// ۴. مدیریت سوکت‌ها (Socket.io)
 io.on('connection', async (socket) => {
-  console.log('⚡ کاربر جدید متصل شد:', socket.id);
-
-  // ارسال تاریخچه ۵۰ پیام اخیر به کاربر جدید
+  // ۱. ارسال ۵۰ پیام اخیر هنگام ورود
   try {
     if (mongoose.connection.readyState === 1) {
       const history = await Message.find().sort({ createdAt: 1 }).limit(50);
@@ -51,20 +52,23 @@ io.on('connection', async (socket) => {
     console.error('خطا در بارگذاری تاریخچه:', err.message);
   }
 
-  // دریافت پیام از کاربر، ارسال همزمان به همه و ذخیره در دیتابیس
+  // ۲. دریافت و پخش پیام (متن، عکس یا ویس)
   socket.on('chat message', async (data) => {
-    if (!data || !data.text || !data.text.trim()) return;
+    if (!data) return;
 
     const messageData = {
       username: data.username || 'کاربر ناشناس',
-      text: data.text.trim(),
+      type: data.type || 'text',
+      text: data.text || '',
+      mediaData: data.mediaData || '',
+      replyTo: data.replyTo || null,
       createdAt: new Date()
     };
 
-    // ۱. پخش آنی پیام برای تمام کاربران متصل
+    // ارسال فوری به تمام کاربران
     io.emit('chat message', messageData);
 
-    // ۲. ذخیره پیام در دیتابیس
+    // ذخیره در دیتابیس
     if (mongoose.connection.readyState === 1) {
       try {
         await Message.create(messageData);
@@ -73,15 +77,10 @@ io.on('connection', async (socket) => {
       }
     }
   });
-
-  socket.on('disconnect', () => {
-    console.log('❌ کاربر قطع شد:', socket.id);
-  });
 });
 
-// ۵. تنظیم پورت برای اجرای بدون مشکل روی Render
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 سرور با موفقیت روی پورت ${PORT} اجرا شد`);
+  console.log(`🚀 سرور روی پورت ${PORT} اجرا شد`);
 });
-      
+  
