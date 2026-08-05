@@ -3,12 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>پیام‌رسان</title>
+  <title>پیام‌رسان پیشرفته</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: Tahoma, Vazir, sans-serif; }
     body { background-color: #eef2f5; display: flex; justify-content: center; align-items: center; height: 100vh; }
-    
-    /* پنجره دریافت نام کاربری */
+
     #username-modal {
       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
       background: rgba(0, 0, 0, 0.6); display: flex; justify-content: center; align-items: center; z-index: 10;
@@ -25,7 +24,6 @@
       width: 100%; padding: 10px; background: #0088cc; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;
     }
 
-    /* کانتینر اصلی چت */
     .chat-container {
       width: 100%; max-width: 500px; height: 100vh; display: flex; flex-direction: column; background: #fff; box-shadow: 0 0 10px rgba(0,0,0,0.1);
     }
@@ -36,7 +34,7 @@
       flex: 1; padding: 15px; overflow-y: auto; list-style: none; display: flex; flex-direction: column; gap: 10px; background: #eef2f5;
     }
     .message-item {
-      max-width: 80%; background: #ffffff; padding: 10px 14px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); word-wrap: break-word; align-self: flex-start;
+      max-width: 80%; background: #ffffff; padding: 10px 14px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); word-wrap: break-word; align-self: flex-start; cursor: pointer; position: relative;
     }
     .message-item.my-message {
       align-self: flex-end; background: #e1ffc7;
@@ -45,20 +43,45 @@
       font-size: 0.8rem; font-weight: bold; color: #0088cc; margin-bottom: 4px; display: block;
     }
     .message-item.my-message .username { color: #2e7d32; }
-    .text { font-size: 0.95rem; color: #222; }
+    .text { font-size: 0.95rem; color: #222; margin-top: 4px; }
     .time { font-size: 0.7rem; color: #888; margin-top: 4px; text-align: left; display: block; }
 
-    /* کادر ارسال پیام */
-    #form { display: flex; padding: 10px; background: #fff; border-top: 1px solid #ddd; }
-    #input { flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 20px; outline: none; font-size: 0.95rem; }
-    #form button {
-      margin-right: 8px; padding: 10px 18px; background: #0088cc; color: white; border: none; border-radius: 20px; font-weight: bold; cursor: pointer;
+    /* نمایش رسانه داخل چت */
+    .chat-img { max-width: 100%; border-radius: 8px; margin-top: 5px; display: block; }
+    .chat-audio { width: 100%; min-width: 200px; margin-top: 5px; }
+
+    /* استایل نمایش ریپلی داخل حباب پیام */
+    .reply-box {
+      background: rgba(0, 0, 0, 0.05); border-right: 3px solid #0088cc; padding: 4px 8px; border-radius: 4px; margin-bottom: 6px; font-size: 0.8rem;
+    }
+    .reply-box .reply-user { font-weight: bold; color: #0088cc; display: block; }
+    .reply-box .reply-text { color: #555; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; display: block; }
+
+    /* پیش‌نمایش پاسخ بالای کادر تایپ */
+    #reply-preview {
+      display: none; background: #f0f4f8; padding: 8px 12px; border-right: 4px solid #0088cc; justify-content: space-between; align-items: center; border-top: 1px solid #ddd;
+    }
+    #reply-preview .details { font-size: 0.85rem; color: #333; overflow: hidden; }
+    #reply-preview .details strong { color: #0088cc; display: block; }
+    #cancel-reply { background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #888; padding: 0 5px; }
+
+    /* ورودی‌ها و دکمه‌های کنترل */
+    #form { display: flex; padding: 10px; background: #fff; border-top: 1px solid #ddd; align-items: center; gap: 6px; }
+    #input { flex: 1; padding: 10px 14px; border: 1px solid #ddd; border-radius: 20px; outline: none; font-size: 0.95rem; }
+    .btn-icon { background: none; border: none; font-size: 1.3rem; cursor: pointer; padding: 5px; border-radius: 50%; width: 40px; height: 40px; display: flex; justify-content: center; align-items: center; }
+    .btn-icon:hover { background: #f0f0f0; }
+    #mic-btn.recording { background: #ff4d4d; color: white; animation: pulse 1s infinite; }
+    #send-btn { background: #0088cc; color: white; border: none; padding: 8px 16px; border-radius: 20px; font-weight: bold; cursor: pointer; }
+
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+      100% { transform: scale(1); }
     }
   </style>
 </head>
 <body>
 
-  <!-- ورودی نام کاربری -->
   <div id="username-modal">
     <div class="modal-box">
       <h3>ورود به پیام‌رسان</h3>
@@ -67,13 +90,27 @@
     </div>
   </div>
 
-  <!-- محیط پیام‌رسان -->
   <div class="chat-container">
     <div class="chat-header">پیام‌رسان آنلاین</div>
     <ul id="messages"></ul>
+
+    <div id="reply-preview">
+      <div class="details">
+        <strong id="reply-user"></strong>
+        <span id="reply-text"></span>
+      </div>
+      <button id="cancel-reply">&times;</button>
+    </div>
+
     <form id="form">
-      <input id="input" autocomplete="off" placeholder="پیام خود را بنویسید..." />
-      <button type="submit">ارسال</button>
+      <!-- ورودی مخفی انتخاب عکس -->
+      <input type="file" id="image-input" accept="image/*" style="display: none;" />
+      <button type="button" class="btn-icon" id="attach-btn" title="ارسال عکس">📷</button>
+
+      <input id="input" autocomplete="off" placeholder="پیام..." />
+
+      <button type="button" class="btn-icon" id="mic-btn" title="ضبط صدا">🎙️</button>
+      <button type="submit" id="send-btn">ارسال</button>
     </form>
   </div>
 
@@ -81,6 +118,9 @@
   <script>
     const socket = io();
     let username = '';
+    let selectedReply = null;
+    let mediaRecorder = null;
+    let audioChunks = [];
 
     const modal = document.getElementById('username-modal');
     const usernameInput = document.getElementById('username-input');
@@ -89,7 +129,15 @@
     const input = document.getElementById('input');
     const messages = document.getElementById('messages');
 
-    // تنظیم نام کاربری
+    const replyPreview = document.getElementById('reply-preview');
+    const replyUserElem = document.getElementById('reply-user');
+    const replyTextElem = document.getElementById('reply-text');
+    const cancelReplyBtn = document.getElementById('cancel-reply');
+
+    const attachBtn = document.getElementById('attach-btn');
+    const imageInput = document.getElementById('image-input');
+    const micBtn = document.getElementById('mic-btn');
+
     function setUsername() {
       const name = usernameInput.value.trim();
       if (name) {
@@ -100,26 +148,123 @@
     }
 
     joinBtn.addEventListener('click', setUsername);
-    usernameInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') setUsername();
+    usernameInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') setUsername(); });
+
+    cancelReplyBtn.addEventListener('click', () => {
+      selectedReply = null;
+      replyPreview.style.display = 'none';
     });
 
-    // نمایش پیام در صفحه
+    // ۱. مدیریت ارسال عکس
+    attachBtn.addEventListener('click', () => imageInput.click());
+    imageInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        socket.emit('chat message', {
+          username: username,
+          type: 'image',
+          mediaData: event.target.result,
+          text: input.value.trim(),
+          replyTo: selectedReply
+        });
+        input.value = '';
+        selectedReply = null;
+        replyPreview.style.display = 'none';
+        imageInput.value = '';
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // ۲. مدیریت ضبط ویس (صدا)
+    micBtn.addEventListener('click', async () => {
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+        micBtn.classList.remove('recording');
+        return;
+      }
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
+
+        mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+        mediaRecorder.onstop = () => {
+          const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            socket.emit('chat message', {
+              username: username,
+              type: 'voice',
+              mediaData: event.target.result,
+              replyTo: selectedReply
+            });
+            selectedReply = null;
+            replyPreview.style.display = 'none';
+          };
+          reader.readAsDataURL(audioBlob);
+
+          // بستن دسترسی به میکروفون بعد از ضبط
+          stream.getTracks().forEach(track => track.stop());
+        };
+
+        mediaRecorder.start();
+        micBtn.classList.add('recording');
+      } catch (err) {
+        alert('دسترسی به میکروفون داده نشد یا پشتیبانی نمی‌شود.');
+      }
+    });
+
+    // ۳. رندر پیام‌ها در چت
     function addMessage(data) {
       const item = document.createElement('li');
       item.classList.add('message-item');
-      
-      if (data.username === username) {
-        item.classList.add('my-message');
-      }
+      if (data.username === username) item.classList.add('my-message');
+
+      // تنظیم متن ریپلی
+      let replyPreviewContent = data.text || 'پیام';
+      if (data.type === 'image') replyPreviewContent = '🖼️ تصویر';
+      if (data.type === 'voice') replyPreviewContent = '🎤 پیام صوتی';
+
+      item.addEventListener('click', () => {
+        selectedReply = { username: data.username, text: replyPreviewContent, type: data.type };
+        replyUserElem.textContent = `پاسخ به ${data.username}`;
+        replyTextElem.textContent = replyPreviewContent;
+        replyPreview.style.display = 'flex';
+        input.focus();
+      });
 
       const timeStr = data.createdAt 
         ? new Date(data.createdAt).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })
         : new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' });
 
+      let replyHTML = '';
+      if (data.replyTo) {
+        replyHTML = `
+          <div class="reply-box">
+            <span class="reply-user">${data.replyTo.username}</span>
+            <span class="reply-text">${data.replyTo.text}</span>
+          </div>
+        `;
+      }
+
+      let bodyHTML = '';
+      if (data.type === 'image') {
+        bodyHTML = `<img src="${data.mediaData}" class="chat-img" />`;
+        if (data.text) bodyHTML += `<div class="text">${data.text}</div>`;
+      } else if (data.type === 'voice') {
+        bodyHTML = `<audio src="${data.mediaData}" controls class="chat-audio"></audio>`;
+      } else {
+        bodyHTML = `<div class="text">${data.text}</div>`;
+      }
+
       item.innerHTML = `
+        ${replyHTML}
         <span class="username">${data.username}</span>
-        <div class="text">${data.text}</div>
+        ${bodyHTML}
         <span class="time">${timeStr}</span>
       `;
 
@@ -127,30 +272,27 @@
       messages.scrollTop = messages.scrollHeight;
     }
 
-    // بارگذاری پیام‌های قدیمی (دیتابیس)
     socket.on('load history', (history) => {
       messages.innerHTML = '';
       history.forEach(item => addMessage(item));
     });
 
-    // دریافت پیام جدید
-    socket.on('chat message', (data) => {
-      addMessage(data);
-    });
+    socket.on('chat message', (data) => addMessage(data));
 
-    // ارسال پیام
+    // ۴. ارسال پیام متنی معمولی
     form.addEventListener('submit', (e) => {
       e.preventDefault();
-      if (!username) {
-        modal.style.display = 'flex';
-        return;
-      }
+      if (!username) { modal.style.display = 'flex'; return; }
       if (input.value.trim()) {
         socket.emit('chat message', {
           username: username,
-          text: input.value.trim()
+          type: 'text',
+          text: input.value.trim(),
+          replyTo: selectedReply
         });
         input.value = '';
+        selectedReply = null;
+        replyPreview.style.display = 'none';
       }
     });
   </script>
